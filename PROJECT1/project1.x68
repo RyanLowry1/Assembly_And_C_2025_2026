@@ -1,7 +1,7 @@
 *-------------------------------------------------------
 * NAME:        Ryan Lowry
 * STUDENT ID:  C00305950
-* DATE:        27/02/2026
+* DATE:        04/03/2026
 *
 * PROJECT:     Alternative Physics Text Based Game
 *
@@ -10,37 +10,35 @@
 *-------------------------------------------------------
 * STARTING MEMORY ADDRESS FOR THE PROGRAMME $1000
 *-------------------------------------------------------
-        ORG $1000
+        ORG $1000                 ; start address for program in memory
 
 *-------------------------------------------------------
 * VALIDATION VALUES TO BE USED, MODIFY AS NEEDED
 *-------------------------------------------------------
-EXIT        EQU 0           ; used to exit program
-MIN_CHOICE  EQU 1           ; minimum menu choice
-MAX_CHOICE  EQU 3           ; maximum menu choice
-
+EXIT        EQU 0                 ; value used to exit program
+MIN_CHOICE  EQU 1                 ; minimum menu choice allowed
+MAX_CHOICE  EQU 4                 ; maximum menu choice
 *-------------------------------------------------------
 * START OF GAME
 *-------------------------------------------------------
 START:
-    BSR RESET_GAME          ; initialise all variables
-    BSR WELCOME             ; display welcome screen
-    BSR GAME                ; branch to game subroutine
+    BSR RESET_GAME                ; initialise all game variables
+    BSR WELCOME                   ; display welcome screen
+    BSR GAME                      ; branch to game subroutine
 
 END:
-    SIMHALT                 ; stop program execution
+    SIMHALT                       ; stop program execution
 
 *-------------------------------------------------------
 *-------------------GAME SUBROUTINE---------------------
 *-------------------------------------------------------
 GAME:
-    BSR GAMELOOP            ; branch to main loop
-    RTS                     ; return from subroutine
+    BSR GAMELOOP                  ; branch to main loop
+    RTS                           ; return from subroutine
 
 *-------------------------------------------------------
 *----------------GAMELOOP (MAIN LOOP)-------------------
-* This is the core loop of the game.
-* It keeps running until win/lose condition is met.
+* This loop keeps the game running each turn
 *-------------------------------------------------------
 GAMELOOP:
     BSR SEPARATOR           ; print visual separator
@@ -53,288 +51,339 @@ GAMELOOP:
 
 *-------------------------------------------------------
 *-------------------WELCOME SUBROUTINE------------------
-* Displays intro message.
+* Displays intro message
 *-------------------------------------------------------
 WELCOME:
-    BSR ENDL
-    LEA WELCOME_MSG,A1
-    MOVE.B #14,D0
-    TRAP #15                ; print welcome text
-    RTS
+    BSR ENDL                      ; move to new line
+    LEA WELCOME_MSG,A1            ; load address of welcome text
+    MOVE.B #14,D0                 ; trap command to print string
+    TRAP #15                      ; print welcome text
+    RTS                           ; return to caller
 
 *-------------------------------------------------------
 *---------GAMEPLAY INPUT VALUES SUBROUTINE--------------
 *-------------------------------------------------------
 INPUT:
-    BSR ENDL
-    LEA CHOICE_MSG,A1
-    MOVE.B #14,D0
-    TRAP #15                ; display menu
+    BSR ENDL                      ; move to new line
+    LEA CHOICE_MSG,A1             ; load menu text
+    MOVE.B #14,D0                 ; prepare to print string
+    TRAP #15                      ; display menu
 
-    MOVE.B #4,D0
-    TRAP #15                ; read user input into D1
+    MOVE.B #4,D0                  ; trap command to read input
+    TRAP #15                      ; read user input into D1
 
-    CMP.B #MIN_CHOICE,D1
-    BLT INPUT               ; if invalid, asks again
-    CMP.B #MAX_CHOICE,D1
-    BGT INPUT
+    CMP.B #MIN_CHOICE,D1          ; check if input < 1
+    BLT INPUT                     ; if invalid, asks again
+    CMP.B #MAX_CHOICE,D1          ; check if input > 4
+    BGT INPUT                     ; ask again if too big
 
-    MOVE.B D1,CHOICE        ; store valid choice
-    RTS
+    MOVE.B D1,CHOICE              ; store valid choice
+    RTS                           ; return
 
 *-------------------------------------------------------
 *----------------UPDATE QUEST PROGRESS------------------
 *-------------------------------------------------------
 UPDATE:
-    ADD.W #1,DAYS           ; each action increases day count
+    ADD.W #1,DAYS                 ; each action increases day count
 
-    MOVE.B CHOICE,D0
+    MOVE.B CHOICE,D0              ; load player choice
 
-    CMP.B #1,D0
-    BEQ ATTACK
+    CMP.B #1,D0                   ; compare choice to 1
+    BEQ ATTACK                    ; branch if player attacks
 
-    CMP.B #2,D0
-    BEQ LOOT
+    CMP.B #2,D0                   ; compare choice to 2
+    BEQ LOOT                      ; branch if player loots
 
-    CMP.B #3,D0
-    BEQ HIDE
+    CMP.B #3,D0                   ; compare choice to 3
+    BEQ HIDE                      ; branch if player hides
 
-    RTS
+    CMP.B #4,D0                   ; compare choice to 4
+    BEQ SHOOT                     ; branch if player shoots
+
+    RTS                           ; return if no match
 
 *---------------- ATTACK OPTION ------------------------
 ATTACK:
-    SUB.W #50,GIANT_HP      ; giant loses 50 HP
-    SUB.W #50,HEALTH        ; player also loses 50 HP
-    LEA ATTACK_MSG,A1
-    BRA PRINT_ACTION
+    SUB.W #30,HEALTH              ; player loses some health
+    SUB.W #40,GIANT_HP            ; giant loses health
+    LEA ATTACK_MSG,A1             ; load attack message
+    BRA PRINT_ACTION              ; print action result
 
 *---------------- LOOT OPTION --------------------------
 LOOT:
-    ADD.W #10,BRAVERY       ; increase bravery
-    SUB.W #10,HEALTH        ; lose health
-    LEA LOOT_MSG,A1
-    BRA PRINT_ACTION
+    ADD.W #15,BRAVERY             ; increase bravery
+    SUB.W #5,HEALTH               ; lose health
+    ADD.W #1,LOOT_COUNT           ; increase loot counter
+    ADD.W #1,ARROWS               ; gain an arrow
+    LEA LOOT_MSG,A1               ; load loot message
+    BRA PRINT_ACTION              ; print result
 
 *---------------- HIDE OPTION --------------------------
 HIDE:
-    SUB.W #20,BRAVERY       ; hiding loses bravery
-    ADD.W #20,HEALTH        ; hiding gains health
+    SUB.W #10,BRAVERY             ; hiding loses bravery
+    ADD.W #25,HEALTH              ; hiding gains health
 
-    ADD.W #1,HIDE_COUNT     ; count how many times hidden
+    ADD.W #1,HIDE_COUNT           ; count how many times hidden
+    
+    CMP.W #3,HIDE_COUNT           ; every 3rd hide
+    BLT SAFE_HIDE                 ; safe if less than 3
 
-    CMP.W #3,HIDE_COUNT     ; every 3rd hide
-    BLT SAFE_HIDE
-
-    CLR.W HIDE_COUNT        ; reset counter
-    SUB.W #50,HEALTH        ; giant finds player
-    LEA FOUND_MSG,A1
-    BRA PRINT_ACTION
+    CLR.W HIDE_COUNT              ; reset counter
+    SUB.W #30,HEALTH              ; giant finds player
+    LEA FOUND_MSG,A1              ; load found message
+    BRA PRINT_ACTION              ; print result
 
 SAFE_HIDE:
-    LEA HIDE_MSG,A1
-
+    LEA HIDE_MSG,A1               ; load hide success message
+    BRA PRINT_ACTION                ; print action result
+    
 PRINT_ACTION:
-    MOVE.B #14,D0
-    TRAP #15                ; print action result
-    RTS
+    MOVE.B #14,D0                 ; trap command for printing
+    TRAP #15                      ; print action message
+    RTS                           ; return to game loop
+
+*---------------- SHOOT OPTION -------------------------
+SHOOT:
+    CMP.W #0,ARROWS               ; check if player has arrows
+    BLE NO_ARROWS                 ; branch if none
+
+    SUB.W #1,ARROWS               ; use one arrow
+    ADD.W #1,SHOOT_COUNT          ; track shots fired
+
+    MOVE.W SHOOT_COUNT,D0         ; copy shot count
+    AND.W #1,D0                   ; check odd/even
+
+    CMP.W #0,D0                   ; check result
+    BNE AUTO_HIT                  ; odd shots always hit
+
+    MOVE.W DAYS,D0                ; load day number
+    AND.W #1,D0                   ; use day for random chance
+
+    CMP.W #0,D0                   ; check if miss
+    BEQ MISS                      ; branch to miss
+    BRA HIT                       ; otherwise hit
+
+AUTO_HIT:
+HIT:
+    SUB.W #40,GIANT_HP            ; giant loses health
+    LEA HIT_MSG,A1                ; load hit message
+    BRA PRINT_ACTION              ; print result
+
+MISS:
+    LEA MISS_MSG,A1               ; load miss message
+    BRA PRINT_ACTION              ; print result
+
+NO_ARROWS:
+    LEA NO_ARROW_MSG,A1           ; load no arrow message
+    BRA PRINT_ACTION              ; print result
 
 *-------------------------------------------------------
 *-----------------DRAW QUEST UPDATES--------------------
 *-------------------------------------------------------
 DRAW:
-    MOVE.W DAYS,D0
-    DIVU #2,D0
-    SWAP D0
-    CMP.W #0,D0
-    BNE NO_WEATHER          ; only if divisible by 2
-
-    MOVE.W DAYS,D0
-    DIVU #3,D0
-    SWAP D0                 ; remainder determines weather type
-
-    CMP.W #0,D0
-    BEQ STORM
-    CMP.W #1,D0
-    BEQ BLIZZARD
-    BRA SUN
+    MOVE.W DAYS,D0                ; copy days to D0
+    DIVU #2,D0                    ; divide by 2
+    SWAP D0                       ; remainder in low word
+    CMP.W #0,D0                   ; check remainder
+    BNE NO_WEATHER                ; only if divisible by 2
+    
+    MOVE.W DAYS,D0                ; reload day count
+    DIVU #3,D0                    ; divide by 3
+    SWAP D0                       ; remainder determines weather type
+    
+    CMP.W #0,D0                   ; check weather type
+    BEQ STORM                     ; storm condition
+    CMP.W #1,D0                   ; check second type
+    BEQ BLIZZARD                  ; blizzard condition
+    BRA SUN                       ; otherwise sunny
 
 STORM:
-    SUB.W #20,HEALTH        ; storm damage
-    LEA STORM_MSG,A1
-    BRA WEATHER_PRINT
+    SUB.W #15,HEALTH              ; storm damage
+    LEA STORM_MSG,A1              ; load storm message
+    BRA WEATHER_PRINT             ; print message
 
 BLIZZARD:
-    SUB.W #50,HEALTH        ; blizzard damage
-    LEA BLIZZARD_MSG,A1
-    BRA WEATHER_PRINT
+    SUB.W #30,HEALTH              ; blizzard damage
+    LEA BLIZZARD_MSG,A1           ; load blizzard message
+    BRA WEATHER_PRINT             ; print message
 
 SUN:
-    LEA SUN_MSG,A1          ; no damage
+    LEA SUN_MSG,A1                ; no damage
 
 WEATHER_PRINT:
-    BSR ENDL                ; print on new line
-    MOVE.B #14,D0
-    TRAP #15
+    BSR ENDL                      ; print on new line
+    MOVE.B #14,D0                 ; prepare print
+    TRAP #15                      ; display weather text
 NO_WEATHER:
-    RTS
+    RTS                           ; return to game
 
 *-------------------------------------------------------
 *-----------------HEADS UP DISPLAY (HUD)----------------
 *-------------------------------------------------------
 HUD:
-    BSR ENDL
-    LEA HP_MSG,A1
+    BSR ENDL                      ; new line
+    LEA HP_MSG,A1                 ; load health label
     MOVE.B #14,D0
-    TRAP #15
-    MOVE.W HEALTH,D1
+    TRAP #15                      ; print label
+    MOVE.W HEALTH,D1              ; move health to D1
     MOVE.B #3,D0
-    TRAP #15
+    TRAP #15                      ; print health value
 
-    BSR ENDL
-    LEA BRAVERY_MSG,A1
+    BSR ENDL                      ; new line
+    LEA BRAVERY_MSG,A1            ; load bravery label
     MOVE.B #14,D0
     TRAP #15
     MOVE.W BRAVERY,D1
     MOVE.B #3,D0
-    TRAP #15
+    TRAP #15                      ; print bravery value
 
     BSR ENDL
-    LEA DAY_MSG,A1
+    LEA DAY_MSG,A1                ; load day label
     MOVE.B #14,D0
     TRAP #15
     MOVE.W DAYS,D1
     MOVE.B #3,D0
+    TRAP #15                      ; print days survived
+
+    BSR ENDL
+    LEA GIANT_MSG,A1              ; load giant hp label
+    MOVE.B #14,D0
     TRAP #15
-    RTS
+    MOVE.W GIANT_HP,D1
+    MOVE.B #3,D0
+    TRAP #15                      ; print giant hp
+
+    BSR ENDL
+    LEA ARROW_MSG,A1              ; load arrow label
+    MOVE.B #14,D0
+    TRAP #15
+    MOVE.W ARROWS,D1
+    MOVE.B #3,D0
+    TRAP #15                      ; print arrow count
+    RTS                           ; return
 
 *-------------------------------------------------------
 *-----------------------CHECK END-----------------------
 *-------------------------------------------------------
 CHECK_END:
-    CMP.W #0,HEALTH
-    BLE PLAYER_DEAD         ; lose if health <= 0
+    CMP.W #0,HEALTH               ; check player health
+    BLE PLAYER_DEAD               ; lose if health <= 0
 
-    CMP.W #0,BRAVERY
-    BLE PLAYER_COWARD       ; lose if bravery <= 0
+    CMP.W #0,BRAVERY              ; check bravery
+    BLE PLAYER_COWARD              ; lose if bravery <= 0
 
-    CMP.W #10,DAYS
-    BGE PLAYER_WIN          ; win if survived 10 days
+    CMP.W #0,GIANT_HP             ; check giant health
+    BGT CONTINUE_GAME             ; continue if giant alive
 
-    CMP.W #0,GIANT_HP
-    BLE PLAYER_WIN          ; also win if giant defeated
+    BSR WIN_WITH_DAYS             ; player wins
+    SIMHALT                       ; stop game
 
-    RTS
+CONTINUE_GAME:
+    RTS                           ; continue loop
 
 PLAYER_DEAD:
-    LEA LOSE_MSG,A1
+    LEA LOSE_MSG,A1               ; load lose message
     MOVE.B #14,D0
-    TRAP #15
-    BSR REPLAY
-    RTS
+    TRAP #15                      ; display lose message
+    SIMHALT                       ; stop program
 
 PLAYER_COWARD:
-    LEA COWARD_MSG,A1
+    LEA COWARD_MSG,A1             ; load coward message
     MOVE.B #14,D0
-    TRAP #15
-    BSR REPLAY
-    RTS
-
-PLAYER_WIN:
-    LEA WIN_MSG,A1
-    MOVE.B #14,D0
-    TRAP #15
-    BSR REPLAY
-    RTS
+    TRAP #15                      ; display coward message
+    SIMHALT                       ; stop program
 
 *-------------------------------------------------------
-*------------------------REPLAY-------------------------
+*----------------------PLAYER WIN-----------------------
 *-------------------------------------------------------
-REPLAY:
+WIN_WITH_DAYS:
+    BSR ENDL                      ; move to new line
+    LEA WIN_MSG,A1                ; load win message
+    MOVE.B #14,D0
+    TRAP #15                      ; print win text
+
     BSR ENDL
-    LEA REPLAY_MSG,A1
+    LEA DAY_MSG,A1                ; print day label
     MOVE.B #14,D0
     TRAP #15
 
-    MOVE.B #4,D0
-    TRAP #15                ; read replay input
-
-    CMP.B #0,D1
-    BEQ END
-
-    CMP.B #1,D1
-    BEQ RESET_AND_RESTART
-
-    BRA REPLAY              ; force valid input
-
-RESET_AND_RESTART:
-    BSR RESET_GAME
-    BRA GAMELOOP
+    MOVE.W DAYS,D1                ; load day value
+    MOVE.B #3,D0
+    TRAP #15                      ; print number of days
+    RTS
 
 *-------------------------------------------------------
 *-------------------RESET GAME--------------------------
 *-------------------------------------------------------
 RESET_GAME:
-    MOVE.W #100,HEALTH
-    MOVE.W #100,BRAVERY
-    MOVE.W #0,DAYS
-    MOVE.W #250,GIANT_HP
-    CLR.W HIDE_COUNT
-    RTS
+    MOVE.W #150,HEALTH            ; starting player health
+    MOVE.W #100,BRAVERY           ; starting bravery
+    MOVE.W #0,DAYS                ; reset day counter
+    MOVE.W #300,GIANT_HP          ; giant starting health
+    CLR.W HIDE_COUNT              ; reset hide counter
+    CLR.W ARROWS                  ; reset arrow count
+    CLR.W LOOT_COUNT              ; reset loot counter
+    CLR.W SHOOT_COUNT             ; reset shoot counter
+    RTS                           ; return
 
 *-------------------------------------------------------
 *------------------SCREEN DECORATION--------------------
 *-------------------------------------------------------
 SEPARATOR:
-    BSR ENDL
-    LEA LINE_MSG,A1
+    BSR ENDL                      ; new line
+    LEA LINE_MSG,A1               ; load separator line
     MOVE.B #14,D0
-    TRAP #15
+    TRAP #15                      ; print separator
     RTS
 
 ENDL:
-    MOVEM.L D0/A1,-(A7)
-    MOVE #14,D0
-    LEA CRLF,A1
-    TRAP #15
-    MOVEM.L (A7)+,D0/A1
-    RTS
+    MOVEM.L D0/A1,-(A7)           ; save registers
+    MOVE #14,D0                   ; trap command
+    LEA CRLF,A1                   ; load newline chars
+    TRAP #15                      ; print newline
+    MOVEM.L (A7)+,D0/A1           ; restore registers
+    RTS                           ; return
 
 *-------------------------------------------------------
-*-------------------DATA DECLARATIONS--------------------
+*-------------------DATA DECLARATIONS-------------------
 *-------------------------------------------------------
 CRLF:          DC.B $0D,$0A,0
 LINE_MSG:      DC.B '====================================================',0
 
 WELCOME_MSG:   DC.B 'SURVIVE THE GIANT OR DEFEAT IT!',0
-CHOICE_MSG:    DC.B '1=ATTACK  2=LOOT  3=HIDE : ',0
+CHOICE_MSG:    DC.B '1=ATTACK  2=LOOT  3=HIDE  4=SHOOT : ',0
 
 ATTACK_MSG:    DC.B 'YOU ATTACK! BOTH TAKE DAMAGE!',0
 LOOT_MSG:      DC.B 'YOU LOOT AND GAIN BRAVERY.',0
 HIDE_MSG:      DC.B 'YOU HIDE SUCCESSFULLY.',0
 FOUND_MSG:     DC.B 'THE GIANT FINDS YOU WHILE HIDING!',0
 
-STORM_MSG:     DC.B 'STORM! -20 HEALTH!',0
-BLIZZARD_MSG:  DC.B 'BLIZZARD! -50 HEALTH!',0
+HIT_MSG:       DC.B 'YOU SHOOT THE GIANT! -40 HP!',0
+MISS_MSG:      DC.B 'YOU MISSED THE GIANT!',0
+NO_ARROW_MSG:  DC.B 'NO ARROWS LEFT!',0
+
+STORM_MSG:     DC.B 'STORM! -15 HEALTH!',0
+BLIZZARD_MSG:  DC.B 'BLIZZARD! -30 HEALTH!',0
 SUN_MSG:       DC.B 'SUNNY DAY. NO DAMAGE.',0
 
 HP_MSG:        DC.B 'HEALTH: ',0
 BRAVERY_MSG:   DC.B 'BRAVERY: ',0
-DAY_MSG:       DC.B 'DAY: ',0
+DAY_MSG:       DC.B 'DAYS: ',0
+GIANT_MSG:     DC.B 'GIANT HP: ',0
+ARROW_MSG:     DC.B 'ARROWS: ',0
 
-WIN_MSG:       DC.B 'YOU SURVIVED OR DEFEATED THE GIANT!',0
+WIN_MSG:       DC.B 'YOU DEFEATED THE GIANT IN:',0
 LOSE_MSG:      DC.B 'YOU WERE CRUSHED WHILE LOOTING',0
 COWARD_MSG:    DC.B 'YOU LOST ALL BRAVERY AND RAN AWAY!',0
-REPLAY_MSG:    DC.B '0=QUIT  1=PLAY AGAIN : ',0
 
-CHOICE:        DS.B 1
-HEALTH:        DS.W 1
-BRAVERY:       DS.W 1
-DAYS:          DS.W 1
-GIANT_HP:      DS.W 1
-HIDE_COUNT:    DS.W 1
+CHOICE:        DS.B 1             ; stores player menu choice
+HEALTH:        DS.W 1             ; player health value
+BRAVERY:       DS.W 1             ; player bravery value
+DAYS:          DS.W 1             ; number of days survived
+GIANT_HP:      DS.W 1             ; giant health value
+HIDE_COUNT:    DS.W 1             ; count number of hides
+ARROWS:        DS.W 1             ; player arrows
+LOOT_COUNT:    DS.W 1             ; number of loot actions
+SHOOT_COUNT:   DS.W 1             ; number of shots fired
 
-    END START
-*~Font name~Courier New~
-*~Font size~10~
-*~Tab type~1~
-*~Tab size~4~
+        END START

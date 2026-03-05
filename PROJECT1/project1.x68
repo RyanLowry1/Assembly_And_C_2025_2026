@@ -342,7 +342,9 @@ RESTART_GAME:
 
 
 RESTART:
-    BRA START
+    BSR RESET_GAME
+    BSR WELCOME
+    BRA GAMELOOP
 
 
 EXIT_GAME:
@@ -420,3 +422,4 @@ LOOT_COUNT:    DS.W 1             ; number of loot actions
 SHOOT_COUNT:   DS.W 1             ; number of shots fired
 
         END START
+

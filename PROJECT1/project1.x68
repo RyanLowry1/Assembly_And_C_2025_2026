@@ -1,7 +1,7 @@
 *-------------------------------------------------------
 * NAME:        Ryan Lowry
 * STUDENT ID:  C00305950
-* DATE:        04/03/2026
+* DATE:        05/03/2026
 *
 * PROJECT:     Alternative Physics Text Based Game
 *
@@ -27,7 +27,7 @@ START:
     BSR GAME                      ; branch to game subroutine
 
 END:
-    SIMHALT                       ; stop program execution
+    BRA RESTART_GAME
 
 *-------------------------------------------------------
 *-------------------GAME SUBROUTINE---------------------
@@ -105,22 +105,23 @@ UPDATE:
 *---------------- ATTACK OPTION ------------------------
 ATTACK:
     SUB.W #30,HEALTH              ; player loses some health
+    ADD.W #5,BRAVERY              ; player gains bravery
     SUB.W #40,GIANT_HP            ; giant loses health
     LEA ATTACK_MSG,A1             ; load attack message
     BRA PRINT_ACTION              ; print action result
 
 *---------------- LOOT OPTION --------------------------
 LOOT:
-    ADD.W #15,BRAVERY             ; increase bravery
-    SUB.W #5,HEALTH               ; lose health
-    ADD.W #1,LOOT_COUNT           ; increase loot counter
-    ADD.W #1,ARROWS               ; gain an arrow
+    ADD.W #5,BRAVERY
+    SUB.W #10,HEALTH
+    ADD.W #1,LOOT_COUNT
+    ADD.W #1,ARROWS
     LEA LOOT_MSG,A1               ; load loot message
     BRA PRINT_ACTION              ; print result
 
 *---------------- HIDE OPTION --------------------------
 HIDE:
-    SUB.W #10,BRAVERY             ; hiding loses bravery
+    SUB.W #25,BRAVERY             ; hiding loses bravery
     ADD.W #25,HEALTH              ; hiding gains health
 
     ADD.W #1,HIDE_COUNT           ; count how many times hidden
@@ -129,7 +130,7 @@ HIDE:
     BLT SAFE_HIDE                 ; safe if less than 3
 
     CLR.W HIDE_COUNT              ; reset counter
-    SUB.W #30,HEALTH              ; giant finds player
+    SUB.W #45,HEALTH              ; giant finds player
     LEA FOUND_MSG,A1              ; load found message
     BRA PRINT_ACTION              ; print result
 
@@ -180,43 +181,49 @@ NO_ARROWS:
 *-------------------------------------------------------
 *-----------------DRAW QUEST UPDATES--------------------
 *-------------------------------------------------------
+
 DRAW:
-    MOVE.W DAYS,D0                ; copy days to D0
-    DIVU #2,D0                    ; divide by 2
-    SWAP D0                       ; remainder in low word
-    CMP.W #0,D0                   ; check remainder
-    BNE NO_WEATHER                ; only if divisible by 2
-    
-    MOVE.W DAYS,D0                ; reload day count
-    DIVU #3,D0                    ; divide by 3
-    SWAP D0                       ; remainder determines weather type
-    
-    CMP.W #0,D0                   ; check weather type
-    BEQ STORM                     ; storm condition
-    CMP.W #1,D0                   ; check second type
-    BEQ BLIZZARD                  ; blizzard condition
-    BRA SUN                       ; otherwise sunny
+    MOVE.W DAYS,D0        ; copy current day number
+
+CHECK_MOD3:
+    CMP.W #3,D0           ; check if less than 3
+    BLT NO_WEATHER        ; if <3 then no weather
+
+    BEQ WEATHER_DAY       ; if exactly 3 then weather triggers
+
+    SUB.W #3,D0           ; subtract 3
+    BRA CHECK_MOD3        ; keep checking
+
+
+WEATHER_DAY:
+    MOVE.W DAYS,D0        ; reload original day value
+    AND.W #1,D0           ; check if day is odd or even
+
+    CMP.W #0,D0
+    BEQ SUNNY             ; even days = sunny
+
+    BRA STORM             ; odd days = storm
+
 
 STORM:
-    SUB.W #15,HEALTH              ; storm damage
-    LEA STORM_MSG,A1              ; load storm message
-    BRA WEATHER_PRINT             ; print message
+    SUB.W #20,HEALTH      ; storm damages player
+    LEA STORM_MSG,A1      ; load storm message
+    BRA WEATHER_PRINT
 
-BLIZZARD:
-    SUB.W #30,HEALTH              ; blizzard damage
-    LEA BLIZZARD_MSG,A1           ; load blizzard message
-    BRA WEATHER_PRINT             ; print message
 
-SUN:
-    LEA SUN_MSG,A1                ; no damage
+SUNNY:
+    LEA SUN_MSG,A1        ; load sunny message
+
 
 WEATHER_PRINT:
-    BSR ENDL                      ; print on new line
-    MOVE.B #14,D0                 ; prepare print
-    TRAP #15                      ; display weather text
-NO_WEATHER:
-    RTS                           ; return to game
+    BSR ENDL              ; move to new line
+    MOVE.B #14,D0         ; trap command for printing
+    TRAP #15              ; print message
+    RTS                   ; return to game
 
+
+NO_WEATHER:
+    RTS                   ; return if no weather
 *-------------------------------------------------------
 *-----------------HEADS UP DISPLAY (HUD)----------------
 *-------------------------------------------------------
@@ -266,32 +273,33 @@ HUD:
 *-----------------------CHECK END-----------------------
 *-------------------------------------------------------
 CHECK_END:
-    CMP.W #0,HEALTH               ; check player health
-    BLE PLAYER_DEAD               ; lose if health <= 0
+    CMP.W #0,HEALTH                 ; check player health
+    BLE PLAYER_DEAD                 ; lose if health <= 0
 
-    CMP.W #0,BRAVERY              ; check bravery
-    BLE PLAYER_COWARD              ; lose if bravery <= 0
+    CMP.W #0,BRAVERY                ; check bravery
+    BLE PLAYER_COWARD               ; lose if bravery <= 0
 
-    CMP.W #0,GIANT_HP             ; check giant health
-    BGT CONTINUE_GAME             ; continue if giant alive
-
+    CMP.W #0,GIANT_HP               ; check giant health
+    BGT CONTINUE_GAME               ; continue if giant alive
+    
+    
     BSR WIN_WITH_DAYS             ; player wins
-    SIMHALT                       ; stop game
+    BRA RESTART_GAME
 
 CONTINUE_GAME:
-    RTS                           ; continue loop
+    RTS
 
 PLAYER_DEAD:
     LEA LOSE_MSG,A1               ; load lose message
     MOVE.B #14,D0
     TRAP #15                      ; display lose message
-    SIMHALT                       ; stop program
+    BRA RESTART_GAME
 
 PLAYER_COWARD:
     LEA COWARD_MSG,A1             ; load coward message
     MOVE.B #14,D0
     TRAP #15                      ; display coward message
-    SIMHALT                       ; stop program
+    BRA RESTART_GAME                       ; stop program
 
 *-------------------------------------------------------
 *----------------------PLAYER WIN-----------------------
@@ -315,11 +323,36 @@ WIN_WITH_DAYS:
 *-------------------------------------------------------
 *-------------------RESET GAME--------------------------
 *-------------------------------------------------------
+RESTART_GAME:
+    BSR ENDL
+    LEA RESTART_MSG,A1
+    MOVE.B #14,D0
+    TRAP #15                 ; print restart message
+
+    MOVE.B #4,D0
+    TRAP #15                 ; read input into D1
+
+    CMP.B #0,D1
+    BEQ EXIT_GAME            ; 0 = exit
+
+    CMP.B #1,D1
+    BEQ RESTART              ; 1 = restart
+
+    BRA RESTART_GAME         ; invalid input asks again
+
+
+RESTART:
+    BRA START
+
+
+EXIT_GAME:
+    SIMHALT                  ; stop program
+    
 RESET_GAME:
     MOVE.W #150,HEALTH            ; starting player health
     MOVE.W #100,BRAVERY           ; starting bravery
     MOVE.W #0,DAYS                ; reset day counter
-    MOVE.W #300,GIANT_HP          ; giant starting health
+    MOVE.W #250,GIANT_HP          ; giant starting health
     CLR.W HIDE_COUNT              ; reset hide counter
     CLR.W ARROWS                  ; reset arrow count
     CLR.W LOOT_COUNT              ; reset loot counter
@@ -352,6 +385,7 @@ LINE_MSG:      DC.B '====================================================',0
 
 WELCOME_MSG:   DC.B 'SURVIVE THE GIANT OR DEFEAT IT!',0
 CHOICE_MSG:    DC.B '1=ATTACK  2=LOOT  3=HIDE  4=SHOOT : ',0
+RESTART_MSG:   DC.B 'PLAY AGAIN? 1=YES 0=NO : ',0
 
 ATTACK_MSG:    DC.B 'YOU ATTACK! BOTH TAKE DAMAGE!',0
 LOOT_MSG:      DC.B 'YOU LOOT AND GAIN BRAVERY.',0
@@ -362,8 +396,7 @@ HIT_MSG:       DC.B 'YOU SHOOT THE GIANT! -40 HP!',0
 MISS_MSG:      DC.B 'YOU MISSED THE GIANT!',0
 NO_ARROW_MSG:  DC.B 'NO ARROWS LEFT!',0
 
-STORM_MSG:     DC.B 'STORM! -15 HEALTH!',0
-BLIZZARD_MSG:  DC.B 'BLIZZARD! -30 HEALTH!',0
+STORM_MSG:     DC.B 'STORM! -20 HEALTH!',0
 SUN_MSG:       DC.B 'SUNNY DAY. NO DAMAGE.',0
 
 HP_MSG:        DC.B 'HEALTH: ',0
@@ -373,7 +406,7 @@ GIANT_MSG:     DC.B 'GIANT HP: ',0
 ARROW_MSG:     DC.B 'ARROWS: ',0
 
 WIN_MSG:       DC.B 'YOU DEFEATED THE GIANT IN:',0
-LOSE_MSG:      DC.B 'YOU WERE CRUSHED WHILE LOOTING',0
+LOSE_MSG:      DC.B 'YOU WERE CRUSHED BY THE GIANT',0
 COWARD_MSG:    DC.B 'YOU LOST ALL BRAVERY AND RAN AWAY!',0
 
 CHOICE:        DS.B 1             ; stores player menu choice

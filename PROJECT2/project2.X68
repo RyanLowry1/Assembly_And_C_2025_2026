@@ -71,13 +71,9 @@ NEW_LINE:
 
 ; ---------------------------------------------------------
 ; Strings
-PROMPT:        DC.B "Enter number: ",0
-RESULT:        DC.B "The sum is: ",0
-FINAL_RESULT:  DC.B "Final sum is: ",0
+PROMPT:        DC.B 'Enter number: ',0
+RESULT:        DC.B 'The sum is: ',0
+FINAL_RESULT:  DC.B 'Final sum is: ',0
 CRLF:          DC.B $D,$A,0
 
         END     START
-*~Font name~Courier New~
-*~Font size~10~
-*~Tab type~1~
-*~Tab size~4~
